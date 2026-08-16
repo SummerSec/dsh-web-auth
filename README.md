@@ -1,26 +1,381 @@
 # dsh-web-auth
 
-A transport-level login gate for the DeepSeek Harness Web GUI. It replaces the official `webserver` row while preserving the `ctx.webServer` contract, authenticating requests before they reach the GUI, plugin bundles, `/api`, SSE, or WebSocket routes.
+[![npm](https://img.shields.io/npm/v/@summersec/dsh-web-auth.svg)](https://www.npmjs.com/package/@summersec/dsh-web-auth)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![topic: dsh-plugin](https://img.shields.io/badge/topic-dsh--plugin-111827)](https://github.com/topics/dsh-plugin)
 
-See [README.zh-CN.md](./README.zh-CN.md) for full setup and deployment instructions.
+Transport-level authentication for the [DeepSeek Harness](https://github.com/deepseek-ai) (DSH) Web GUI.
+
+Official DSH `webserver` serves the GUI, plugin bundles, `/api`, SSE, and WebSocket traffic without a login boundary. This plugin **disables** that unauthenticated carrier and replaces it with a drop-in `webServer` service that authenticates every request **before** it reaches application routes.
+
+中文文档：[README.zh-CN.md](./README.zh-CN.md)
+
+---
+
+## Why this exists
+
+DSH’s stock web host is convenient for local use, but it is not a product auth layer:
+
+- Binding to `0.0.0.0` or putting the port behind a reverse proxy can expose the full control surface.
+- A frontend-only “login page” does not protect `/api`, static plugin assets, SSE, or WebSocket upgrades.
+- Session and password handling need to live on the HTTP carrier itself.
+
+`@summersec/dsh-web-auth` sits at the transport layer:
+
+1. Disable `@deepseek-ai/dsh-host-webserver`.
+2. Insert `webserver-auth` with the same `ctx.webServer` contract (`register`, `registerUpgrade`, `registerFallback`, `tapIndex`, `host`, `port`).
+3. Gate HTTP and upgrade traffic with a server-side session cookie.
+
+Other plugins keep registering routes as usual; they do not need to know auth exists.
+
+---
+
+## Features
+
+| Area | Behavior |
+| --- | --- |
+| Coverage | HTTP routes **and** WebSocket / HTTP upgrade paths |
+| Default mode | `always` — login required even on `127.0.0.1` |
+| Optional mode | `non-loopback` — skip auth only when bound to loopback |
+| Passwords | scrypt hashes (`scrypt$N$r$p$salt$key`); plaintext env only for temporary use |
+| Sessions | 32-byte random tokens, in-memory store, sliding TTL |
+| Cookies | `HttpOnly`, `SameSite=Strict`, optional `Secure` |
+| Abuse control | Per-client-IP login attempt limiter with `Retry-After` |
+| Login UX | Built-in `/auth/login` page (light/dark), form + JSON body |
+| Hardening | Origin check on login/logout, open-redirect sanitization, CSP and frame denial on auth responses |
+
+---
+
+## Requirements
+
+- **Node.js** `>= 22`
+- **DeepSeek Harness** with a `web` profile (peer: `@deepseek-ai/cordis` `^4.0.1`)
+- A password **hash** in the process environment (recommended), or a temporary plaintext password
+
+---
 
 ## Quick start
 
 ```powershell
-node .\bin\dsh-web-auth.js generate
+# 1) Generate a random password + scrypt hash (save the password offline)
+npx --yes @summersec/dsh-web-auth generate
+
+# 2) Export the hash for this shell session (do not commit it)
 $env:WEB_AUTH_PASSWORD_HASH = 'scrypt$...'
+$env:WEB_AUTH_USERNAME = 'admin'
+
+# 3) Install into the web profile
 dsh plugin --profile web add @summersec/dsh-web-auth
+
+# 4) Start the GUI
 dsh web
 ```
 
-Authentication is enabled for every bind by default. Use `WEB_AUTH_MODE=non-loopback` only when loopback access should remain unauthenticated. Public deployments still require an HTTPS reverse proxy.
+Open the usual DSH URL. Unauthenticated browser navigations redirect to `/auth/login`. API and other non-HTML clients receive `401` JSON:
 
-## Checks
+```json
+{ "error": "authentication_required" }
+```
+
+After login you get a session cookie and continue to the original path.
+
+> **Do not** put the password or hash into the project `.env` if that file is shared or committed. Prefer the process environment, a secrets manager, or a private host-level env file outside the repo.
+
+---
+
+## Install from source
 
 ```powershell
-node --test
-npm pack --dry-run
+git clone https://github.com/SummerSec/dsh-web-auth.git
+cd dsh-web-auth
+npm install
+
+node .\bin\dsh-web-auth.js generate
+$env:WEB_AUTH_PASSWORD_HASH = 'scrypt$...'
+
+# From the parent directory that hosts your DSH workspace, or via local path:
+dsh plugin --profile web add <path-to-dsh-web-auth>
+dsh web
+```
+
+Hash an existing password (minimum **12** characters):
+
+```powershell
+$env:WEB_AUTH_PASSWORD = 'your-long-passphrase'
+node .\bin\dsh-web-auth.js hash-password
+Remove-Item Env:WEB_AUTH_PASSWORD
+```
+
+Or pipe stdin (the CLI never accepts the password as a command-line argument):
+
+```powershell
+'your-long-passphrase' | node .\bin\dsh-web-auth.js hash-password
+```
+
+---
+
+## Authentication modes
+
+| `authMode` / `WEB_AUTH_MODE` | When auth runs |
+| --- | --- |
+| `always` (**default**) | Always, including `host: 127.0.0.1` |
+| `non-loopback` | Only when `host` is not `127.0.0.1` (e.g. `0.0.0.0`) |
+
+```powershell
+# Default: always require login
+$env:WEB_AUTH_MODE = 'always'
+dsh web
+
+# Loopback without login; enable gate when binding non-loopback
+$env:WEB_AUTH_MODE = 'non-loopback'
+dsh web --host 0.0.0.0
+```
+
+If authentication is active and neither `passwordHash` nor `password` is configured, the plugin **throws at startup** so you never ship an open server by accident.
+
+---
+
+## Environment variables
+
+The bundle (`cordis.patch.yml`) wires these into plugin config:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `WEB_AUTH_MODE` | `always` | `always` or `non-loopback` |
+| `WEB_AUTH_USERNAME` | `admin` | Login username |
+| `WEB_AUTH_PASSWORD_HASH` | _(none)_ | Preferred scrypt hash from `generate` / `hash-password` |
+| `WEB_AUTH_PASSWORD` | _(none)_ | Plaintext password for temporary / lab use only |
+
+Prefer `WEB_AUTH_PASSWORD_HASH`. Keep `WEB_AUTH_PASSWORD` for short-lived local experiments.
+
+---
+
+## Advanced configuration
+
+The bundle:
+
+1. Sets the stock `webserver` row to `disabled: true`.
+2. Inserts `webserver-auth` with name `@summersec/dsh-web-auth`.
+
+DSH patches replace config **as a whole**. To override advanced fields, restate the full `webserver-auth` block in the profile patch (e.g. profile `cordis.patch.yml`):
+
+```yaml
+- id: webserver-auth
+  name: '@summersec/dsh-web-auth'
+  inject: [webStartup]
+  config:
+    host: !!js ctx.webStartup.host ?? '127.0.0.1'
+    port: !!js ctx.webStartup.port ?? 3080
+    authMode: always
+    username: admin
+    passwordHash: !!js process.env.WEB_AUTH_PASSWORD_HASH
+    sessionTtlMinutes: 720
+    maxAttempts: 5
+    attemptWindowSeconds: 300
+    secureCookie: auto
+    trustProxy: false
+```
+
+### Config reference
+
+| Field | Type / values | Default | Notes |
+| --- | --- | --- | --- |
+| `host` | `127.0.0.1` \| `0.0.0.0` | `127.0.0.1` | Listen address (from web startup) |
+| `port` | `0`–`65535` | `3080` | Listen port; `0` for ephemeral |
+| `authMode` | `always` \| `non-loopback` | `always` | See [Authentication modes](#authentication-modes) |
+| `username` | string | `admin` | Single shared account |
+| `password` | string | — | Plaintext; avoid in production |
+| `passwordHash` | `scrypt$...` | — | Required format from the CLI |
+| `sessionTtlMinutes` | `1`–`43200` | `720` (12h) | Sliding window on each authenticated request |
+| `maxAttempts` | `1`–`1000` | `5` | Failed logins per IP per window |
+| `attemptWindowSeconds` | `1`–`86400` | `300` | Attempt window length |
+| `secureCookie` | `auto` \| `always` \| `never` | `auto` | When to set the `Secure` flag |
+| `trustProxy` | boolean | `false` | Trust `X-Forwarded-*` only behind a locked-down proxy |
+
+### `secureCookie` and `trustProxy`
+
+| Scenario | Suggested settings |
+| --- | --- |
+| Local HTTP on loopback | `secureCookie: auto`, `trustProxy: false` |
+| Direct TLS on the Node process | `secureCookie: auto` (sets `Secure` when the socket is encrypted) |
+| HTTPS terminated at nginx / Caddy / Cloudflare | `secureCookie: auto` or `always`, **`trustProxy: true`**, and **only** the proxy may reach DSH’s port |
+
+If `trustProxy` is true while the port is reachable by untrusted clients, attackers can spoof `X-Forwarded-For` / `X-Forwarded-Proto` and weaken IP limits or cookie security. Lock network access first.
+
+---
+
+## Auth HTTP API
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` / `HEAD` | `/auth/login` | Login HTML page; `?next=/path` for post-login redirect |
+| `POST` | `/auth/login` | Authenticate (`application/x-www-form-urlencoded` or `application/json`) |
+| `POST` | `/auth/logout` | Clear session cookie and redirect to login |
+| `GET` | `/auth/status` | `{ authenticated, required, username? }` — `200` or `401` |
+
+### Login body (JSON)
+
+```json
+{
+  "username": "admin",
+  "password": "...",
+  "next": "/"
+}
+```
+
+### Behavior notes
+
+- Successful form login responds with `303` + `Set-Cookie` (`dsh_web_auth`) and `Location` set to a **sanitized** relative path (blocks `//evil`, absolute URLs, and header-injection characters).
+- Failed login returns the login page with an error message (`401`) or rate-limit page (`429` + `Retry-After`).
+- Login and logout require a matching `Origin` when the header is present (CSRF-oriented check).
+- WebSocket upgrades without a valid session are closed with `401` and a JSON error body.
+- Auth HTML responses set `Cache-Control: no-store`, a strict CSP, `X-Frame-Options: DENY`, and related headers.
+
+---
+
+## How it fits into DSH
+
+```text
+Browser / client
+       │
+       ▼
+┌──────────────────────┐
+│  dsh-web-auth        │  ← session cookie / login routes
+│  (Authenticated      │
+│   WebServer service) │
+└──────────┬───────────┘
+           │ authenticated only
+           ▼
+  GUI · plugin bundles · /api · SSE · WS
+  (registered via ctx.webServer.*)
+```
+
+Compatible surface with the stock web server service:
+
+- `register({ kind, path, handler })`
+- `registerUpgrade({ path, handler })`
+- `registerFallback(handler)`
+- `tapIndex(transform)`
+- `host` / `port` getters
+
+---
+
+## CLI
+
+Package binary: `dsh-web-auth`
+
+```text
+dsh-web-auth generate
+  Print WEB_AUTH_PASSWORD=... and WEB_AUTH_PASSWORD_HASH=...
+
+dsh-web-auth hash-password
+  Read password from WEB_AUTH_PASSWORD or stdin; print scrypt hash only
+```
+
+Password rules for hashing: at least **12** characters. Output format:
+
+```text
+scrypt$N$r$p$<salt-base64url>$<key-base64url>
+```
+
+Default scrypt parameters: `N=16384`, `r=8`, `p=1`, 64-byte key, 16-byte salt.
+
+---
+
+## Verification
+
+```powershell
+npm run check          # syntax check + unit tests
+npm pack --dry-run     # publish file set
 dsh --profile web --dump-config
 ```
 
-MIT
+In the dump, confirm:
+
+- Stock `webserver` has `disabled: true`
+- A `webserver-auth` row exists with name `@summersec/dsh-web-auth`
+- Startup logs do not show `FAILED`
+
+Manual smoke:
+
+1. Open the GUI without a cookie → redirect to `/auth/login`.
+2. Log in → land on the app; cookie `dsh_web_auth` present.
+3. `GET /auth/status` with cookie → `authenticated: true`.
+4. `POST /auth/logout` → session cleared.
+5. Exceed failed attempts → `429` until the window resets.
+
+---
+
+## Publish to npm
+
+Package name: `@summersec/dsh-web-auth` (public scope).
+
+```powershell
+cd D:\ghproject\dsh-web-auth
+npm login
+npm whoami
+npm run check
+npm pack --dry-run
+npm publish --access public
+# with 2FA: npm publish --access public --otp=123456
+```
+
+Later releases:
+
+```powershell
+npm version patch   # or minor / major
+npm publish --access public
+npm view @summersec/dsh-web-auth version
+```
+
+---
+
+## Limitations
+
+- **In-memory sessions** — process restart invalidates all logins; no multi-instance sticky session store.
+- **Single shared account** — one username/password boundary, not multi-user RBAC or audit roles.
+- **Only the DSH web carrier** — other ports or sidecars need their own protection.
+- **Not a substitute for TLS** — put HTTPS in front for any non-loopback or multi-user network.
+- **`trustProxy` is dangerous if mis-scoped** — only enable when the listen port is exclusive to a trusted reverse proxy.
+
+---
+
+## Security notes
+
+- Prefer scrypt hashes over plaintext env passwords.
+- Default `always` mode avoids “I thought loopback was enough” surprises on shared machines.
+- Cookie flags and Origin checks reduce common session theft and CSRF patterns; they do not replace network isolation and HTTPS.
+- Report security issues privately if you find one; do not open a public issue with exploit details.
+
+---
+
+## Project layout
+
+```text
+dsh-web-auth/
+├── bin/dsh-web-auth.js   # generate / hash-password CLI
+├── cordis.patch.yml      # DSH bundle: disable stock webserver, insert webserver-auth
+├── src/
+│   ├── auth.js           # scrypt, sessions, attempt limiter, cookie helpers
+│   └── index.js          # AuthenticatedWebServer service + login UI
+├── test/                 # node:test unit tests
+├── package.json
+├── README.md
+└── README.zh-CN.md
+```
+
+---
+
+## Links
+
+- Repository: [github.com/SummerSec/dsh-web-auth](https://github.com/SummerSec/dsh-web-auth)
+- npm: [@summersec/dsh-web-auth](https://www.npmjs.com/package/@summersec/dsh-web-auth)
+- Topic: [dsh-plugin](https://github.com/topics/dsh-plugin)
+- Friends: [LINUX DO](https://linux.do/)
+
+---
+
+## License
+
+[MIT](./LICENSE)
