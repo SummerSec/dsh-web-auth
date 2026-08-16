@@ -1,0 +1,23 @@
+# Disable the stock unauthenticated carrier, then provide the same webServer
+# service contract through an authenticated carrier. DSH patches cannot rename
+# an existing row, so the replacement uses its own id.
+- id: webserver
+  name: '@deepseek-ai/dsh-host-webserver'
+  disabled: true
+
+- insert:
+    - id: webserver-auth
+      name: '@summersec/dsh-web-auth'
+      inject: [webStartup]
+      config:
+        host: !!js ctx.webStartup.host ?? '127.0.0.1'
+        port: !!js ctx.webStartup.port ?? 3080
+        authMode: !!js process.env.WEB_AUTH_MODE ?? 'always'
+        username: !!js process.env.WEB_AUTH_USERNAME ?? 'admin'
+        password: !!js process.env.WEB_AUTH_PASSWORD
+        passwordHash: !!js process.env.WEB_AUTH_PASSWORD_HASH
+        sessionTtlMinutes: 720
+        maxAttempts: 5
+        attemptWindowSeconds: 300
+        secureCookie: auto
+        trustProxy: false
