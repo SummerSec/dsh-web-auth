@@ -1,9 +1,6 @@
-# Publish Node.js package on GitHub Release.
-# - npm: registry.npmjs.org (requires repo secret NPM_TOKEN)
+# Publish package on GitHub Release.
 # - GitHub Packages: npm.pkg.github.com (uses GITHUB_TOKEN)
-#
-# Trigger: create a GitHub Release whose tag matches package.json version
-# (e.g. tag v0.1.0 for version 0.1.0), or run workflow_dispatch manually.
+# npmjs.org is published manually; this workflow does not publish there.
 
 name: Publish Node.js Package
 
@@ -15,7 +12,6 @@ on:
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 concurrency:
   group: publish-package-${{ github.event.release.tag_name || github.ref }}
@@ -42,29 +38,6 @@ jobs:
 
       - name: Pack dry-run
         run: npm pack --dry-run
-
-  publish-npm:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js (npm registry)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          registry-url: https://registry.npmjs.org
-          scope: '@summersec'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-gpr:
     needs: build
