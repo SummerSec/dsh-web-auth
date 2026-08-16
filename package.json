@@ -34,6 +34,14 @@
     "web"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SummerSec/dsh-web-auth.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SummerSec/dsh-web-auth/issues"
+  },
+  "homepage": "https://github.com/SummerSec/dsh-web-auth#readme",
   "publishConfig": {
     "access": "public"
   },
