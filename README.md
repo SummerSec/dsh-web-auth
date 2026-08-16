@@ -13,6 +13,12 @@ Official DSH `webserver` serves the GUI, plugin bundles, `/api`, SSE, and WebSoc
 
 ---
 
+## Login page
+
+![DeepSeek Harness authentication page](./docs/assets/dsh-web-auth-login.png)
+
+---
+
 ## Why this exists
 
 DSH’s stock web host is convenient for local use, but it is not a product auth layer:
@@ -205,6 +211,27 @@ If `trustProxy` is true while the port is reachable by untrusted clients, attack
 
 ---
 
+## Brute-force protection
+
+Failed logins are limited by client IP. With the default configuration, an IP may fail 5 times within 300 seconds. Further attempts receive `429 Too Many Requests` and a `Retry-After` header until the window expires. A successful login clears that IP's failure count.
+
+Configure the threshold with:
+
+```yaml
+maxAttempts: 5
+attemptWindowSeconds: 300
+```
+
+The limiter is intentionally small and local:
+
+- Counters are stored in process memory, so a restart clears them and multiple instances do not share state.
+- It limits IP addresses, not accounts. Attackers rotating source IPs can avoid a single-IP threshold.
+- With `trustProxy: false`, the socket address is used. With `trustProxy: true`, the first `X-Forwarded-For` value is trusted, so the DSH port must only accept traffic from the configured proxy.
+
+For an Internet-facing deployment, keep this limiter enabled and add rate limiting at the reverse proxy or firewall. It is not a replacement for HTTPS, network isolation, or a strong password.
+
+---
+
 ## Auth HTTP API
 
 | Method | Path | Purpose |
@@ -273,13 +300,26 @@ dsh-web-auth hash-password
   Read password from WEB_AUTH_PASSWORD or stdin; print scrypt hash only
 ```
 
-Password rules for hashing: at least **12** characters. Output format:
+### Password hashing algorithm
+
+The CLI uses Node.js `crypto.scryptSync`, an RFC 7914 scrypt password-based key derivation function. It is designed to make large-scale password guessing more expensive in both CPU time and memory than a fast general-purpose hash.
+
+For each password, the plugin:
+
+1. Generates a new 16-byte random salt with `crypto.randomBytes`.
+2. Derives a 64-byte key with `N=16384`, `r=8`, and `p=1`.
+3. Stores the algorithm name, parameters, salt, and derived key in one string. The salt and key use unpadded Base64URL encoding.
+4. During login, derives the key again with the stored parameters and compares it with `crypto.timingSafeEqual`.
+
+The password itself is not stored, and the encoded value is not encryption that can be decrypted. Passwords passed to the hashing CLI must contain at least **12** characters.
+
+Stored format:
 
 ```text
 scrypt$N$r$p$<salt-base64url>$<key-base64url>
 ```
 
-Default scrypt parameters: `N=16384`, `r=8`, `p=1`, 64-byte key, 16-byte salt.
+Default parameters: `N=16384` (CPU/memory cost), `r=8` (block size), `p=1` (parallelization), a 64-byte derived key, and a 16-byte salt. The Node.js scrypt memory ceiling is set to at least 64 MiB for these operations.
 
 ---
 

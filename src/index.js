@@ -50,19 +50,20 @@ function loginPage(next, message = '') {
   <meta name="color-scheme" content="light dark">
   <title>登录 | DeepSeek Harness</title>
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#17211b;background:#eef2ef}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#e8efeb 0%,#f7f8f7 55%,#e7ece9 100%)}
-    main{width:min(100%,380px);background:#fff;border:1px solid #d9e0dc;border-radius:8px;padding:30px;box-shadow:0 16px 50px rgba(22,38,29,.12)}
-    .mark{width:38px;height:38px;display:grid;place-items:center;background:#153c2b;color:#fff;border-radius:7px;font-weight:750;font-size:17px}
-    h1{font-size:22px;line-height:1.25;margin:22px 0 6px;letter-spacing:0}p{margin:0 0 22px;color:#617067;font-size:14px;line-height:1.5}
-    label{display:block;font-size:13px;font-weight:650;margin:14px 0 7px}input{width:100%;height:42px;border:1px solid #b9c5be;border-radius:6px;padding:0 11px;font:inherit;background:#fff;color:#17211b;outline:none}input:focus{border-color:#1d6847;box-shadow:0 0 0 3px rgba(29,104,71,.14)}
-    button{width:100%;height:42px;margin-top:20px;border:0;border-radius:6px;background:#17633f;color:#fff;font:inherit;font-weight:700;cursor:pointer}button:hover{background:#105234}.error{margin:0 0 12px;padding:10px 12px;border-left:3px solid #bd2c2c;background:#fff2f2;color:#8f2020;border-radius:3px;font-size:13px}
-    footer{margin-top:20px;color:#7a8780;font-size:12px;text-align:center}@media(prefers-color-scheme:dark){:root{color:#e9efeb;background:#111713}body{background:#111713}main{background:#19211c;border-color:#344139;box-shadow:none}p,footer{color:#a7b4ac}input{background:#111713;color:#eef3ef;border-color:#4b5b51}.error{background:#351d1d;color:#ffb9b9}}
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2329;background:#f7f9fc}
+    *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:#f7f9fc}
+    main{width:min(100%,400px);background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:34px 34px 30px;box-shadow:0 12px 30px rgba(31,35,41,.08);animation:rise .35s ease-out both}
+    .brand{display:flex;align-items:center;gap:10px;color:#1f2329;font-size:18px;font-weight:700;letter-spacing:0}
+    .mark{width:34px;height:34px;display:grid;place-items:center;background:#4d6bfe;color:#fff;border-radius:10px;font-weight:750;font-size:15px;box-shadow:0 4px 10px rgba(77,107,254,.2)}
+    h1{font-size:24px;line-height:1.25;margin:28px 0 7px;letter-spacing:0;color:#1f2329}p{margin:0 0 24px;color:#697386;font-size:14px;line-height:1.5}
+    label{display:block;font-size:13px;font-weight:650;margin:16px 0 7px;color:#374151}input{width:100%;height:44px;border:1px solid #d7dce5;border-radius:7px;padding:0 12px;font:inherit;background:#fff;color:#1f2329;outline:none;transition:border-color .18s ease,box-shadow .18s ease}input:focus{border-color:#4d6bfe;box-shadow:0 0 0 3px rgba(77,107,254,.14)}
+    button{width:100%;height:44px;margin-top:22px;border:0;border-radius:7px;background:#4d6bfe;color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:background .18s ease,transform .18s ease,box-shadow .18s ease;box-shadow:0 4px 10px rgba(77,107,254,.18)}button:hover{background:#4059d8;box-shadow:0 6px 14px rgba(77,107,254,.24)}button:active{transform:translateY(1px)}.error{margin:0 0 14px;padding:10px 12px;border-left:3px solid #d14343;background:#fff5f5;color:#a12d2d;border-radius:5px;font-size:13px}
+    footer{margin-top:22px;color:#9aa3b2;font-size:12px;text-align:center}@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@media(prefers-reduced-motion:reduce){main,input,button{animation:none;transition:none}}
   </style>
 </head>
 <body>
   <main>
-    <div class="mark" aria-hidden="true">DS</div>
+    <div class="brand"><div class="mark" aria-hidden="true">DS</div><span>DeepSeek</span></div>
     <h1>DeepSeek Harness</h1>
     <p>此服务需要身份验证。</p>
     ${feedback}
@@ -83,7 +84,7 @@ function loginPage(next, message = '') {
 function addSecurityHeaders(res) {
   res.setHeader('Cache-Control', 'no-store')
   res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
-  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader('Referrer-Policy', 'same-origin')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
 }

@@ -52,6 +52,10 @@ test('the live provider gates navigation, API routes, and upgrades', async (t) =
   assert.equal(navigation.status, 302)
   assert.equal(navigation.headers.get('location'), '/auth/login?next=%2F')
 
+  const loginPage = await fetch(`${origin}/auth/login`)
+  assert.equal(loginPage.status, 200)
+  assert.equal(loginPage.headers.get('referrer-policy'), 'same-origin')
+
   const denied = await fetch(`${origin}/api/test`)
   assert.equal(denied.status, 401)
 

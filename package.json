@@ -1,6 +1,6 @@
 {
   "name": "@summersec/dsh-web-auth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Transport-level authentication gate for the DeepSeek Harness Web GUI",
   "type": "module",
   "main": "src/index.js",
@@ -12,6 +12,7 @@
   "files": [
     "src",
     "bin",
+    "docs",
     "cordis.patch.yml",
     "README.md",
     "README.zh-CN.md",

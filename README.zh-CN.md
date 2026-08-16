@@ -13,6 +13,12 @@ English: [README.md](./README.md)
 
 ---
 
+## 登录页面
+
+![DeepSeek Harness 登录页面](./docs/assets/dsh-web-auth-login.png)
+
+---
+
 ## 为什么需要它
 
 DSH 自带 Web 宿主适合本地调试，但不是产品级访问控制：
@@ -207,6 +213,27 @@ DSH 补丁对配置是**整块替换**。若要覆盖高级字段，请在 profi
 
 ---
 
+## 登录失败限流
+
+插件按客户端 IP 记录登录失败次数。默认配置下，同一 IP 在 300 秒内失败 5 次后，后续登录会收到 `429 Too Many Requests` 和 `Retry-After`，直到计数窗口过期。登录成功会清除该 IP 的失败记录。
+
+阈值由以下配置控制：
+
+```yaml
+maxAttempts: 5
+attemptWindowSeconds: 300
+```
+
+这项防护有明确边界：
+
+- 计数保存在进程内存中，服务重启后会清空，多实例之间也不会共享。
+- 限制对象是 IP，不是账号。攻击者轮换来源 IP 时，可以绕过单 IP 阈值。
+- `trustProxy: false` 时使用 socket 地址；开启 `trustProxy` 后会信任 `X-Forwarded-For` 的第一个值，因此 DSH 端口必须只允许受控代理访问。
+
+公网部署时，建议同时在反向代理或防火墙设置限流。这项功能不能替代 HTTPS、网络隔离和强口令。
+
+---
+
 ## 鉴权 HTTP 接口
 
 | 方法 | 路径 | 作用 |
@@ -275,13 +302,26 @@ dsh-web-auth hash-password
   从 WEB_AUTH_PASSWORD 或 stdin 读取口令，只打印 scrypt 散列
 ```
 
-散列规则：口令至少 **12** 字符。输出格式：
+### 口令散列算法
+
+CLI 使用 Node.js 内置的 `crypto.scryptSync`，对应 RFC 7914 定义的 scrypt 口令派生函数。scrypt 属于内存困难算法，相比普通快速散列，批量猜测口令需要付出更多 CPU 和内存成本。
+
+每次生成散列时，插件会：
+
+1. 通过 `crypto.randomBytes` 生成新的 16 字节随机盐。
+2. 使用 `N=16384`、`r=8`、`p=1` 派生 64 字节密钥。
+3. 将算法名、参数、盐和派生密钥保存为一个字符串；盐与密钥使用无填充的 Base64URL 编码。
+4. 登录校验时读取已保存的参数，重新派生密钥，再通过 `crypto.timingSafeEqual` 做恒定时间比较。
+
+插件不会保存原始口令。散列结果也不是可解密的密文。传给散列 CLI 的口令至少需要 **12** 个字符。
+
+存储格式：
 
 ```text
 scrypt$N$r$p$<salt-base64url>$<key-base64url>
 ```
 
-默认 scrypt 参数：`N=16384`，`r=8`，`p=1`，64 字节密钥，16 字节盐。
+默认参数中，`N=16384` 控制 CPU/内存成本，`r=8` 是块大小，`p=1` 是并行度；派生密钥为 64 字节，盐为 16 字节。Node.js scrypt 调用的内存上限至少设置为 64 MiB。
 
 ---
 
