@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { Service } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
@@ -29,6 +30,29 @@ export const Config = Schema.object({
 const COOKIE_NAME = 'dsh_web_auth'
 const AUTH_PREFIX = '/auth'
 const MAX_LOGIN_BODY_BYTES = 16 * 1024
+const DEEPSEEK_FAVICON = readFileSync(new URL('./assets/deepseek-favicon.svg', import.meta.url), 'utf8')
+const AUTH_BOOTSTRAP_SCRIPT = `(() => {
+  const nativeFetch = globalThis.fetch.bind(globalThis)
+  let redirecting = false
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input), location.href)
+    const sameOrigin = url.origin === location.origin
+    const response = await nativeFetch(input, sameOrigin ? { ...init, credentials: 'same-origin' } : init)
+    if (sameOrigin && response.status === 401 && !redirecting) {
+      void response.clone().json().then((body) => {
+        if (body?.error !== 'authentication_required' || redirecting) return
+        redirecting = true
+        const next = location.pathname + location.search + location.hash
+        location.replace('/auth/login?next=' + encodeURIComponent(next))
+      }).catch(() => {})
+    }
+    return response
+  }
+})()`
+
+function injectAuthBootstrap(html) {
+  return html.replace('<head>', '<head>\n<script src="/auth/bootstrap.js"></script>')
+}
 
 function escapeHtml(value) {
   return String(value)
@@ -47,6 +71,7 @@ function loginPage(next, message = '') {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/auth/favicon.svg">
   <meta name="color-scheme" content="light dark">
   <title>登录 | DeepSeek Harness</title>
   <style>
@@ -54,7 +79,7 @@ function loginPage(next, message = '') {
     *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:#f7f9fc}
     main{width:min(100%,400px);background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:34px 34px 30px;box-shadow:0 12px 30px rgba(31,35,41,.08);animation:rise .35s ease-out both}
     .brand{display:flex;align-items:center;gap:10px;color:#1f2329;font-size:18px;font-weight:700;letter-spacing:0}
-    .mark{width:34px;height:34px;display:grid;place-items:center;background:#4d6bfe;color:#fff;border-radius:10px;font-weight:750;font-size:15px;box-shadow:0 4px 10px rgba(77,107,254,.2)}
+    .mark{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#f0f3f8;box-shadow:0 4px 10px rgba(31,35,41,.1);overflow:hidden}.mark img{display:block;width:100%;height:100%;object-fit:contain}
     h1{font-size:24px;line-height:1.25;margin:28px 0 7px;letter-spacing:0;color:#1f2329}p{margin:0 0 24px;color:#697386;font-size:14px;line-height:1.5}
     label{display:block;font-size:13px;font-weight:650;margin:16px 0 7px;color:#374151}input{width:100%;height:44px;border:1px solid #d7dce5;border-radius:7px;padding:0 12px;font:inherit;background:#fff;color:#1f2329;outline:none;transition:border-color .18s ease,box-shadow .18s ease}input:focus{border-color:#4d6bfe;box-shadow:0 0 0 3px rgba(77,107,254,.14)}
     button{width:100%;height:44px;margin-top:22px;border:0;border-radius:7px;background:#4d6bfe;color:#fff;font:inherit;font-weight:700;cursor:pointer;transition:background .18s ease,transform .18s ease,box-shadow .18s ease;box-shadow:0 4px 10px rgba(77,107,254,.18)}button:hover{background:#4059d8;box-shadow:0 6px 14px rgba(77,107,254,.24)}button:active{transform:translateY(1px)}.error{margin:0 0 14px;padding:10px 12px;border-left:3px solid #d14343;background:#fff5f5;color:#a12d2d;border-radius:5px;font-size:13px}
@@ -63,7 +88,7 @@ function loginPage(next, message = '') {
 </head>
 <body>
   <main>
-    <div class="brand"><div class="mark" aria-hidden="true">DS</div><span>DeepSeek</span></div>
+    <div class="brand"><div class="mark" aria-hidden="true"><img src="/auth/favicon.svg" alt=""></div><span>DeepSeek</span></div>
     <h1>DeepSeek Harness</h1>
     <p>此服务需要身份验证。</p>
     ${feedback}
@@ -83,7 +108,7 @@ function loginPage(next, message = '') {
 
 function addSecurityHeaders(res) {
   res.setHeader('Cache-Control', 'no-store')
-  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
   res.setHeader('Referrer-Policy', 'same-origin')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
@@ -140,7 +165,7 @@ export default class AuthenticatedWebServer extends Service {
     this.logger = ctx.logger('dsh-web-auth')
     this.routes = new Map()
     this.upgrades = new Map()
-    this.indexTaps = []
+    this.indexTaps = [injectAuthBootstrap]
     this.fallback = undefined
     this.boundPort = config.port
     this.authRequired = config.authMode === 'always' || config.host !== '127.0.0.1'
@@ -285,6 +310,22 @@ export default class AuthenticatedWebServer extends Service {
   }
 
   async handleAuthRoute(pathname, url, req, res) {
+    if (pathname === '/auth/bootstrap.js' && (req.method === 'GET' || req.method === 'HEAD')) {
+      addSecurityHeaders(res)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'text/javascript; charset=utf-8')
+      res.setHeader('Content-Length', Buffer.byteLength(AUTH_BOOTSTRAP_SCRIPT))
+      return res.end(req.method === 'HEAD' ? undefined : AUTH_BOOTSTRAP_SCRIPT)
+    }
+
+    if (pathname === '/auth/favicon.svg' && (req.method === 'GET' || req.method === 'HEAD')) {
+      addSecurityHeaders(res)
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
+      res.setHeader('Content-Length', Buffer.byteLength(DEEPSEEK_FAVICON))
+      return res.end(req.method === 'HEAD' ? undefined : DEEPSEEK_FAVICON)
+    }
+
     if (pathname === '/auth/login' && (req.method === 'GET' || req.method === 'HEAD')) {
       const html = loginPage(url.searchParams.get('next') ?? '/')
       if (req.method === 'HEAD') {

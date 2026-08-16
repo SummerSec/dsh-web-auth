@@ -15,7 +15,7 @@ English: [README.md](./README.md)
 
 ## 登录页面
 
-![DeepSeek Harness 登录页面](./docs/assets/dsh-web-auth-login.png)
+![DeepSeek Harness 登录页面](./docs/assets/dsh-web-auth-login-v0.1.2.png)
 
 ---
 
@@ -84,7 +84,7 @@ dsh web
 { "error": "authentication_required" }
 ```
 
-登录成功后写入会话 Cookie，并跳回原路径。
+登录成功后写入会话 Cookie，并跳回原路径。页面注入的浏览器引导会让同源 API、SSE 和第三方插件请求明确携带该 Cookie；如果内存会话过期或服务重启导致旧会话失效，收到 `authentication_required` 时会自动回到登录页，避免插件停留在无提示的传输失败状态。
 
 > **不要**把口令或散列写进会共享/提交的项目 `.env`。优先使用进程环境、密钥管理系统，或仓库外的主机级环境文件。
 

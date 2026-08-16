@@ -55,6 +55,18 @@ test('the live provider gates navigation, API routes, and upgrades', async (t) =
   const loginPage = await fetch(`${origin}/auth/login`)
   assert.equal(loginPage.status, 200)
   assert.equal(loginPage.headers.get('referrer-policy'), 'same-origin')
+  assert.match(loginPage.headers.get('content-security-policy') ?? '', /script-src 'self'/)
+  assert.match(await loginPage.text(), /href="\/auth\/favicon\.svg"/)
+
+  const favicon = await fetch(`${origin}/auth/favicon.svg`)
+  assert.equal(favicon.status, 200)
+  assert.equal(favicon.headers.get('content-type'), 'image/svg+xml; charset=utf-8')
+  assert.match(await favicon.text(), /<svg\b/)
+
+  const bootstrap = await fetch(`${origin}/auth/bootstrap.js`)
+  assert.equal(bootstrap.status, 200)
+  assert.match(await bootstrap.text(), /credentials: 'same-origin'/)
+  assert.match(ctx.webServer.applyIndexTaps('<html><head></head></html>'), /\/auth\/bootstrap\.js/)
 
   const denied = await fetch(`${origin}/api/test`)
   assert.equal(denied.status, 401)

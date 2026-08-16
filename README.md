@@ -15,7 +15,7 @@ Official DSH `webserver` serves the GUI, plugin bundles, `/api`, SSE, and WebSoc
 
 ## Login page
 
-![DeepSeek Harness authentication page](./docs/assets/dsh-web-auth-login.png)
+![DeepSeek Harness authentication page](./docs/assets/dsh-web-auth-login-v0.1.2.png)
 
 ---
 
@@ -84,7 +84,7 @@ Open the usual DSH URL. Unauthenticated browser navigations redirect to `/auth/l
 { "error": "authentication_required" }
 ```
 
-After login you get a session cookie and continue to the original path.
+After login you get a session cookie and continue to the original path. The injected browser bootstrap makes same-origin API, SSE, and plugin requests use that session cookie explicitly. If an in-memory session expires or the service restarts, a JSON `authentication_required` response sends the browser back to the login page instead of leaving the plugin in a silent transport-failure state.
 
 > **Do not** put the password or hash into the project `.env` if that file is shared or committed. Prefer the process environment, a secrets manager, or a private host-level env file outside the repo.
 
