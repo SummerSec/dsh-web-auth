@@ -355,6 +355,13 @@ dsh --profile web --dump-config
 
 发布仅通过仓库的 GitHub Actions 工作流完成。**不要将本地 `npm publish` 作为发布路径。**
 
+首次发布前，请在仓库 Actions Secrets 中配置名为 `NPM_TOKEN` 的 secret。该 npm token 必须拥有发布 `@summersec` 包的权限，并且 npm 组织的 2FA 与 CI 发布策略必须允许 GitHub Actions 使用此 token。
+
+通过以下任一工作流入口发布：
+
+1. 创建 GitHub Release，并使用与 `package.json` 中 `X.Y.Z` 版本严格对应的 `vX.Y.Z` tag。
+2. 手动运行 **Publish Node.js Package**（`workflow_dispatch`），并填写完全一致的包版本号。
+
 ---
 
 ## 限制

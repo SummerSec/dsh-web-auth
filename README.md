@@ -353,6 +353,13 @@ Package name: `@summersec/dsh-web-auth` (public scope).
 
 Publishing is performed only by the repository's GitHub Actions workflow. **Do not use local `npm publish`** as a release path.
 
+Before the first release, add a repository Actions secret named `NPM_TOKEN`. It must be an npm token with permission to publish `@summersec` packages, and the npm organization’s 2FA and CI-publishing policy must permit GitHub Actions to use that token.
+
+Release through one of these workflow entry points:
+
+1. Create a GitHub Release with a `vX.Y.Z` tag that exactly matches `package.json`'s `X.Y.Z` version.
+2. Run **Publish Node.js Package** with `workflow_dispatch` and provide the exact package version.
+
 ---
 
 ## Limitations
