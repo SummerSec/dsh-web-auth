@@ -87,28 +87,28 @@ export function sanitizeReturnPath(value) {
 }
 
 export class SessionStore {
-  constructor(ttlMs, now = () => Date.now()) {
+  constructor(ttlMs, now = () => Date.now(), maxEntries = 10_000) {
     this.ttlMs = ttlMs
     this.now = now
+    this.maxEntries = maxEntries
     this.sessions = new Map()
   }
 
   create(username) {
-    this.prune()
+    const now = this.now()
+    this.prune(now)
+    if (this.sessions.size >= this.maxEntries) this.sessions.delete(this.sessions.keys().next().value)
     const token = randomBytes(32).toString('base64url')
-    this.sessions.set(token, { username, expiresAt: this.now() + this.ttlMs })
+    this.sessions.set(token, { username, expiresAt: now + this.ttlMs })
     return token
   }
 
   get(token) {
     if (!token) return undefined
+    const now = this.now()
+    this.prune(now)
     const session = this.sessions.get(token)
     if (!session) return undefined
-    const now = this.now()
-    if (session.expiresAt <= now) {
-      this.sessions.delete(token)
-      return undefined
-    }
     session.expiresAt = now + this.ttlMs
     return session
   }
@@ -117,8 +117,7 @@ export class SessionStore {
     if (token) this.sessions.delete(token)
   }
 
-  prune() {
-    const now = this.now()
+  prune(now = this.now()) {
     for (const [token, session] of this.sessions) {
       if (session.expiresAt <= now) this.sessions.delete(token)
     }

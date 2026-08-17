@@ -48,6 +48,21 @@ test('sessions expire and slide while active', () => {
   assert.equal(sessions.get(token), undefined)
 })
 
+test('sessions prune stale entries and bound concurrent session records', () => {
+  let now = 1000
+  const sessions = new SessionStore(100, () => now, 2)
+  const first = sessions.create('admin')
+  const second = sessions.create('admin')
+  const third = sessions.create('admin')
+  assert.equal(sessions.get(first), undefined)
+  assert.equal(sessions.sessions.size, 2)
+
+  now = 1101
+  assert.equal(sessions.get(second), undefined)
+  assert.equal(sessions.sessions.size, 0)
+  assert.equal(sessions.get(third), undefined)
+})
+
 test('attempt limiter blocks at the configured threshold and resets', () => {
   let now = 1000
   const limiter = new AttemptLimiter(2, 500, () => now)
