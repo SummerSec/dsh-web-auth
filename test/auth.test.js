@@ -48,6 +48,21 @@ test('sessions expire and slide while active', () => {
   assert.equal(sessions.get(token), undefined)
 })
 
+test('sessions prune stale entries and bound concurrent session records', () => {
+  let now = 1000
+  const sessions = new SessionStore(100, () => now, 2)
+  const first = sessions.create('admin')
+  const second = sessions.create('admin')
+  const third = sessions.create('admin')
+  assert.equal(sessions.get(first), undefined)
+  assert.equal(sessions.sessions.size, 2)
+
+  now = 1101
+  assert.equal(sessions.get(second), undefined)
+  assert.equal(sessions.sessions.size, 0)
+  assert.equal(sessions.get(third), undefined)
+})
+
 test('attempt limiter blocks at the configured threshold and resets', () => {
   let now = 1000
   const limiter = new AttemptLimiter(2, 500, () => now)
@@ -57,4 +72,19 @@ test('attempt limiter blocks at the configured threshold and resets', () => {
   assert.equal(limiter.check('ip').allowed, false)
   now = 1501
   assert.equal(limiter.check('ip').allowed, true)
+  assert.equal(limiter.attempts.has('ip'), false)
+})
+
+test('attempt limiter prunes expired records and bounds distinct client records', () => {
+  let now = 1000
+  const limiter = new AttemptLimiter(2, 500, () => now, 2)
+  limiter.fail('expired')
+  now = 1501
+  limiter.fail('first')
+  assert.deepEqual([...limiter.attempts.keys()], ['first'])
+
+  limiter.fail('second')
+  limiter.fail('third')
+  assert.equal(limiter.attempts.size, 2)
+  assert.deepEqual([...limiter.attempts.keys()], ['second', 'third'])
 })

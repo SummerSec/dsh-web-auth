@@ -353,23 +353,18 @@ dsh --profile web --dump-config
 
 包名：`@summersec/dsh-web-auth`（public scope）。
 
-```powershell
-cd D:\ghproject\dsh-web-auth
-npm login
-npm whoami
-npm run check
-npm pack --dry-run
-npm publish --access public
-# 开启 2FA 时：npm publish --access public --otp=123456
-```
+发布仅通过仓库的 GitHub Actions 工作流完成。**不要将本地 `npm publish` 作为发布路径。**
 
-后续版本：
+首次发布前，请在仓库 Actions Secrets 中配置名为 `NPM_TOKEN` 的 secret。该 npm token 必须拥有发布 `@summersec` 包的权限，并且 npm 组织的 2FA 与 CI 发布策略必须允许 GitHub Actions 使用此 token。
 
-```powershell
-npm version patch   # 或 minor / major
-npm publish --access public
-npm view @summersec/dsh-web-auth version
-```
+通过以下任一工作流入口发布：
+
+1. 创建 GitHub Release，并使用与 `package.json` 中 `X.Y.Z` 版本严格对应的 `vX.Y.Z` tag。
+2. 手动运行 **Publish Node.js Package**（`workflow_dispatch`），并填写完全一致的包版本号。
+
+工作流会验证版本、运行检查，然后发布到 npm 与 GitHub Packages。push 和 pull request 只运行验证 job，不能发布包。
+
+如果 GitHub Packages 已发布成功但 npm 发布失败，请打开该工作流运行记录并选择 **Re-run failed jobs**。不要重新运行整个工作流，否则会再次尝试发布相同版本的 GitHub Packages。
 
 ---
 

@@ -351,23 +351,18 @@ Manual smoke:
 
 Package name: `@summersec/dsh-web-auth` (public scope).
 
-```powershell
-cd D:\ghproject\dsh-web-auth
-npm login
-npm whoami
-npm run check
-npm pack --dry-run
-npm publish --access public
-# with 2FA: npm publish --access public --otp=123456
-```
+Publishing is performed only by the repository's GitHub Actions workflow. **Do not use local `npm publish`** as a release path.
 
-Later releases:
+Before the first release, add a repository Actions secret named `NPM_TOKEN`. It must be an npm token with permission to publish `@summersec` packages, and the npm organization’s 2FA and CI-publishing policy must permit GitHub Actions to use that token.
 
-```powershell
-npm version patch   # or minor / major
-npm publish --access public
-npm view @summersec/dsh-web-auth version
-```
+Release through one of these workflow entry points:
+
+1. Create a GitHub Release with a `vX.Y.Z` tag that exactly matches `package.json`'s `X.Y.Z` version.
+2. Run **Publish Node.js Package** with `workflow_dispatch` and provide the exact package version.
+
+The workflow validates the version, runs checks, then publishes to npm and GitHub Packages. Pushes and pull requests run the verification job only; they cannot publish packages.
+
+If GitHub Packages has already published but npm fails, open that workflow run and choose **Re-run failed jobs**. Do not re-run the entire workflow, because that would try to publish the same GitHub Packages version again.
 
 ---
 
