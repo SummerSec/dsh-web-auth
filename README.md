@@ -351,23 +351,7 @@ Manual smoke:
 
 Package name: `@summersec/dsh-web-auth` (public scope).
 
-```powershell
-cd D:\ghproject\dsh-web-auth
-npm login
-npm whoami
-npm run check
-npm pack --dry-run
-npm publish --access public
-# with 2FA: npm publish --access public --otp=123456
-```
-
-Later releases:
-
-```powershell
-npm version patch   # or minor / major
-npm publish --access public
-npm view @summersec/dsh-web-auth version
-```
+Publishing is performed only by the repository's GitHub Actions workflow. **Do not use local `npm publish`** as a release path.
 
 ---
 

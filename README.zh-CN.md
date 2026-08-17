@@ -353,23 +353,7 @@ dsh --profile web --dump-config
 
 包名：`@summersec/dsh-web-auth`（public scope）。
 
-```powershell
-cd D:\ghproject\dsh-web-auth
-npm login
-npm whoami
-npm run check
-npm pack --dry-run
-npm publish --access public
-# 开启 2FA 时：npm publish --access public --otp=123456
-```
-
-后续版本：
-
-```powershell
-npm version patch   # 或 minor / major
-npm publish --access public
-npm view @summersec/dsh-web-auth version
-```
+发布仅通过仓库的 GitHub Actions 工作流完成。**不要将本地 `npm publish` 作为发布路径。**
 
 ---
 
