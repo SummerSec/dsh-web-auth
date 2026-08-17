@@ -362,6 +362,10 @@ dsh --profile web --dump-config
 1. 创建 GitHub Release，并使用与 `package.json` 中 `X.Y.Z` 版本严格对应的 `vX.Y.Z` tag。
 2. 手动运行 **Publish Node.js Package**（`workflow_dispatch`），并填写完全一致的包版本号。
 
+工作流会验证版本、运行检查，然后发布到 npm 与 GitHub Packages。push 和 pull request 只运行验证 job，不能发布包。
+
+如果 GitHub Packages 已发布成功但 npm 发布失败，请打开该工作流运行记录并选择 **Re-run failed jobs**。不要重新运行整个工作流，否则会再次尝试发布相同版本的 GitHub Packages。
+
 ---
 
 ## 限制

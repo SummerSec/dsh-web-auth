@@ -360,6 +360,10 @@ Release through one of these workflow entry points:
 1. Create a GitHub Release with a `vX.Y.Z` tag that exactly matches `package.json`'s `X.Y.Z` version.
 2. Run **Publish Node.js Package** with `workflow_dispatch` and provide the exact package version.
 
+The workflow validates the version, runs checks, then publishes to npm and GitHub Packages. Pushes and pull requests run the verification job only; they cannot publish packages.
+
+If GitHub Packages has already published but npm fails, open that workflow run and choose **Re-run failed jobs**. Do not re-run the entire workflow, because that would try to publish the same GitHub Packages version again.
+
 ---
 
 ## Limitations
