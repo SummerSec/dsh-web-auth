@@ -126,17 +126,22 @@ export class SessionStore {
 }
 
 export class AttemptLimiter {
-  constructor(maxAttempts, windowMs, now = () => Date.now()) {
+  constructor(maxAttempts, windowMs, now = () => Date.now(), maxEntries = 10_000) {
     this.maxAttempts = maxAttempts
     this.windowMs = windowMs
     this.now = now
+    this.maxEntries = maxEntries
     this.attempts = new Map()
   }
 
   check(key) {
     const current = this.attempts.get(key)
     const now = this.now()
-    if (!current || current.resetAt <= now) return { allowed: true, retryAfterSeconds: 0 }
+    if (!current) return { allowed: true, retryAfterSeconds: 0 }
+    if (current.resetAt <= now) {
+      this.attempts.delete(key)
+      return { allowed: true, retryAfterSeconds: 0 }
+    }
     if (current.count < this.maxAttempts) return { allowed: true, retryAfterSeconds: 0 }
     return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) }
   }
@@ -145,6 +150,8 @@ export class AttemptLimiter {
     const now = this.now()
     const current = this.attempts.get(key)
     if (!current || current.resetAt <= now) {
+      this.prune(now)
+      if (this.attempts.size >= this.maxEntries) this.attempts.delete(this.attempts.keys().next().value)
       this.attempts.set(key, { count: 1, resetAt: now + this.windowMs })
     } else {
       current.count += 1
@@ -153,5 +160,11 @@ export class AttemptLimiter {
 
   clear(key) {
     this.attempts.delete(key)
+  }
+
+  prune(now = this.now()) {
+    for (const [key, attempt] of this.attempts) {
+      if (attempt.resetAt <= now) this.attempts.delete(key)
+    }
   }
 }

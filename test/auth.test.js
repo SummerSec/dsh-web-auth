@@ -57,4 +57,19 @@ test('attempt limiter blocks at the configured threshold and resets', () => {
   assert.equal(limiter.check('ip').allowed, false)
   now = 1501
   assert.equal(limiter.check('ip').allowed, true)
+  assert.equal(limiter.attempts.has('ip'), false)
+})
+
+test('attempt limiter prunes expired records and bounds distinct client records', () => {
+  let now = 1000
+  const limiter = new AttemptLimiter(2, 500, () => now, 2)
+  limiter.fail('expired')
+  now = 1501
+  limiter.fail('first')
+  assert.deepEqual([...limiter.attempts.keys()], ['first'])
+
+  limiter.fail('second')
+  limiter.fail('third')
+  assert.equal(limiter.attempts.size, 2)
+  assert.deepEqual([...limiter.attempts.keys()], ['second', 'third'])
 })
