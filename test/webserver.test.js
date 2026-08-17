@@ -91,3 +91,30 @@ test('the live provider gates navigation, API routes, and upgrades', async (t) =
 
   assert.match(await rawUpgrade(ctx.webServer.port), /^HTTP\/1\.1 401 Unauthorized/)
 })
+
+test('login origin validation includes the trusted request scheme', async (t) => {
+  const ctx = new Context()
+  const fiber = ctx.plugin(AuthenticatedWebServer, { ...config, trustProxy: true, secureCookie: 'auto' })
+  await fiber.await()
+  t.after(() => fiber.dispose())
+
+  const origin = `http://127.0.0.1:${ctx.webServer.port}`
+  const body = new URLSearchParams({ username: 'admin', password: config.password })
+  const mismatchedProtocol = await fetch(`${origin}/auth/login`, {
+    method: 'POST',
+    headers: { origin, 'x-forwarded-proto': 'https' },
+    body,
+    redirect: 'manual',
+  })
+  assert.equal(mismatchedProtocol.status, 403)
+
+  const secureOrigin = origin.replace('http:', 'https:')
+  const accepted = await fetch(`${origin}/auth/login`, {
+    method: 'POST',
+    headers: { origin: secureOrigin, 'x-forwarded-proto': 'https' },
+    body,
+    redirect: 'manual',
+  })
+  assert.equal(accepted.status, 303)
+  assert.match(accepted.headers.get('set-cookie') ?? '', /Secure/)
+})

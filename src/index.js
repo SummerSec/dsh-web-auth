@@ -303,7 +303,9 @@ export default class AuthenticatedWebServer extends Service {
     const origin = req.headers.origin
     if (!origin) return true
     try {
-      return new URL(origin).host === req.headers.host
+      const scheme = this.isSecureRequest(req) ? 'https:' : 'http:'
+      const requestOrigin = new URL(`${scheme}//${req.headers.host}`).origin
+      return new URL(origin).origin === requestOrigin
     } catch {
       return false
     }
