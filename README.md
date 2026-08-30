@@ -126,16 +126,16 @@ Or pipe stdin (the CLI never accepts the password as a command-line argument):
 | `authMode` / `WEB_AUTH_MODE` | When auth runs |
 | --- | --- |
 | `always` (**default**) | Always, including `host: 127.0.0.1` |
-| `non-loopback` | Only when `host` is not `127.0.0.1` (e.g. `0.0.0.0`) |
+| `non-loopback` | Only when `host` is not `127.0.0.1` (e.g. a concrete LAN IP) |
 
 ```powershell
 # Default: always require login
 $env:WEB_AUTH_MODE = 'always'
 dsh web
 
-# Loopback without login; enable gate when binding non-loopback
+# Loopback without login; binding any non-loopback address gates automatically
 $env:WEB_AUTH_MODE = 'non-loopback'
-dsh web --host 0.0.0.0
+dsh web --host 192.168.1.20
 ```
 
 If authentication is active and neither `passwordHash` nor `password` is configured, the plugin **throws at startup** so you never ship an open server by accident.
@@ -187,7 +187,7 @@ DSH patches replace config **as a whole**. To override advanced fields, restate 
 
 | Field | Type / values | Default | Notes |
 | --- | --- | --- | --- |
-| `host` | `127.0.0.1` \| `0.0.0.0` | `127.0.0.1` | Listen address (from web startup) |
+| `host` | IP or host name | `127.0.0.1` | Listen address; any non-loopback bind forces auth |
 | `port` | `0`–`65535` | `3080` | Listen port; `0` for ephemeral |
 | `authMode` | `always` \| `non-loopback` | `always` | See [Authentication modes](#authentication-modes) |
 | `username` | string | `admin` | Single shared account |

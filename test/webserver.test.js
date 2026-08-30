@@ -118,3 +118,11 @@ test('login origin validation includes the trusted request scheme', async (t) =>
   assert.equal(accepted.status, 303)
   assert.match(accepted.headers.get('set-cookie') ?? '', /Secure/)
 })
+
+test('Config accepts concrete LAN addresses and host names, not just the two literals', () => {
+  const accepted = ['192.168.31.6', '10.0.0.5', '::1', 'localhost', '0.0.0.0', '127.0.0.1']
+  for (const host of accepted) {
+    const value = AuthenticatedWebServer.Config({ ...config, host })
+    assert.equal(value.host, host)
+  }
+})

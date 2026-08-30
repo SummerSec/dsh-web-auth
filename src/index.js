@@ -14,7 +14,11 @@ import {
 export const name = 'dsh-web-auth'
 
 export const Config = Schema.object({
-  host: Schema.union(['127.0.0.1', '0.0.0.0']).default('127.0.0.1'),
+  // Any bind address is allowed: a concrete LAN IPv4/IPv6, a host name, or the
+  // loopback/all-interfaces literals. Authentication is forced for every
+  // non-loopback bind (see authRequired below), so opening a specific network
+  // address still cannot reach the control surface without a login.
+  host: Schema.string().default('127.0.0.1'),
   port: Schema.number().min(0).max(65_535).default(3080),
   authMode: Schema.union(['always', 'non-loopback']).default('always'),
   username: Schema.string().default('admin'),
@@ -225,8 +229,10 @@ export default class AuthenticatedWebServer extends Service {
   }
 
   registerUpgrade(route) {
-    if (!route || typeof route.path !== 'string' || !route.path.startsWith('/') || route.path.endsWith('/')) {
-      throw new Error('Web upgrade route path must be absolute and have no trailing slash.')
+    // Match stock dsh-host-webserver: absolute path required; trailing slash is allowed
+    // (e.g. remote-web-ui registers exact "/m/" for the mobile SPA root).
+    if (!route || typeof route.path !== 'string' || !route.path.startsWith('/')) {
+      throw new Error('Web upgrade route path must be an absolute path.')
     }
     if (this.upgrades.has(route.path)) throw new Error(`Duplicate Web upgrade route: ${route.path}`)
     this.upgrades.set(route.path, route.handler)
@@ -257,8 +263,10 @@ export default class AuthenticatedWebServer extends Service {
     if (!route || !['exact', 'prefix'].includes(route.kind) || typeof route.handler !== 'function') {
       throw new Error('Invalid Web route registration.')
     }
-    if (typeof route.path !== 'string' || !route.path.startsWith('/') || (route.path !== '/' && route.path.endsWith('/'))) {
-      throw new Error('Web route path must be absolute and have no trailing slash.')
+    // Match stock dsh-host-webserver: absolute path required; trailing slash is allowed
+    // (e.g. remote-web-ui registers exact "/m/" for the mobile SPA root).
+    if (typeof route.path !== 'string' || !route.path.startsWith('/')) {
+      throw new Error('Web route path must be an absolute path.')
     }
   }
 

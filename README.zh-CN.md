@@ -126,16 +126,16 @@ Remove-Item Env:WEB_AUTH_PASSWORD
 | `authMode` / `WEB_AUTH_MODE` | 何时启用鉴权 |
 | --- | --- |
 | `always`（**默认**） | 始终启用，包括 `host: 127.0.0.1` |
-| `non-loopback` | 仅当 `host` 不是 `127.0.0.1` 时启用（例如 `0.0.0.0`） |
+| `non-loopback` | 仅当 `host` 不是 `127.0.0.1` 时启用（例如具体局域网 IP） |
 
 ```powershell
 # 默认：永远需要登录
 $env:WEB_AUTH_MODE = 'always'
 dsh web
 
-# loopback 可不登录；绑定非 loopback 时自动开闸
+# loopback 可不登录；绑定任何非 loopback 地址都会自动开闸
 $env:WEB_AUTH_MODE = 'non-loopback'
-dsh web --host 0.0.0.0
+dsh web --host 192.168.1.20
 ```
 
 当鉴权处于启用状态，且既未配置 `passwordHash` 也未配置 `password` 时，插件会在**启动阶段直接抛错**，避免误上线成“空门”服务。
@@ -187,7 +187,7 @@ DSH 补丁对配置是**整块替换**。若要覆盖高级字段，请在 profi
 
 | 字段 | 类型 / 取值 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `host` | `127.0.0.1` \| `0.0.0.0` | `127.0.0.1` | 监听地址（来自 web startup） |
+| `host` | IP 或主机名 | `127.0.0.1` | 监听地址；任何非 loopback 绑定都会强制鉴权 |
 | `port` | `0`–`65535` | `3080` | 监听端口；`0` 表示系统分配 |
 | `authMode` | `always` \| `non-loopback` | `always` | 见[鉴权模式](#鉴权模式) |
 | `username` | string | `admin` | 单账号共享访问边界 |
